@@ -118,7 +118,7 @@ bool LimitBorder(GameObject* entity, int moveDir) {
 void Move(GameObject* entity){
 	if (entity->type == Sniper || entity->type > 200) return;
 
-	int destPosX, destPosY, block; // 이동 후의 좌표와 블럭
+	int destPosX, destPosY, block; // 이동 후의 좌표와 블럭 
 	int directions[4] = { UP, DOWN, LEFT, RIGHT }, randDir;	// 방향
 	bool inBorder, isMoved = false;
 
