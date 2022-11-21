@@ -14,16 +14,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <memory.h>
-typedef enum GameObjectType {
-	Street = 0,
-	Wall = 1,
-	// Lower than 200 = Entity
-	Drunken = 101,
-	Cop,
-	Sniper,
-	// Higher than 200 = 
-	Pub = 201,
-	Home
+typedef enum GameObjectType { 
+	Street = 0, Wall,
+	Drunken = 101, Cop, Sniper, // Lower than 200 = Entity
+	Pub = 201, Home	// Higher than 200 = Structure
 }GameObjectType;
 
 typedef struct GameObject { int x, y, type, prevQuad, curQuad, isAuto; } GameObject;
@@ -46,34 +40,33 @@ int pubX, pubY, homeX, homeY;
 void gotoxy(short x, short y) {
 	COORD pos = { 2 * x, y };
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
-}
-bool InBorder(GameObject* entity, int moveDir);
-bool LimitBorder(GameObject* entity, int moveDir);
-void Move(GameObject* entity);
-void Awake();
-GameObject* CreateGameObject(GameObjectType type, int quad);
-int SolveQuad(int x, int y);
-bool Patrol(GameObject* entity1, GameObject* entity2);
-bool Sniping(GameObject* sniper);
-bool Alive(GameObject* entity);
-void RenderScreen();
-void DrawChar(short x, short y, int type);
-void FindStructure();
-
+}							// 커서 이동
+bool InBorder(GameObject* entity, int moveDir);					// 맵의 전반적인 경계
+bool LimitBorder(GameObject* entity, int moveDir);				// 엔티티 타입별로 이동제한
+void Move(GameObject* entity);									// 엔티티 이동
+void Awake();													// 초기화
+GameObject* CreateGameObject(GameObjectType type, int quad);	// 게임오브젝트 생성
+int SolveQuad(int x, int y);									// 해당 좌표의 사분면 도출
+bool Detecting(GameObject* entity1);							// NPC의 감지
+bool Sniping(GameObject* sniper);								// 저격
+bool Arrive(GameObject* entity);								// 도착 확인
+void RenderScreen();											// 게임 출력
+void DrawChar(short x, short y, int type);						// 해당 좌표에 문자 출력
+void FindStructure();											// 구조물 위치 파악
 
 int main() {
 	Awake();
-	bool isAlived = false;
+	bool isArrived = false;
 	GameObject* drunken = CreateGameObject(Drunken, 1);
 	GameObject* cop1 = CreateGameObject(Cop, 2);
 	GameObject* cop2 = CreateGameObject(Cop, 3);
 	GameObject* sniper = CreateGameObject(Sniper, 4);
 	drunken->isAuto = false;
-	while (isAlived != true) {
+	while (isArrived != true) {
 		Sleep(100);
 		RenderScreen();
-		isAlived = Alive(drunken);
-		if (isAlived) continue;
+		isArrived = Arrive(drunken);
+		if (isArrived) continue;
 		Move(drunken);
 		Move(cop1);
 		Move(cop2);
@@ -92,8 +85,8 @@ bool InBorder(GameObject* entity, int moveDir) {
 }
 
 bool LimitBorder(GameObject* entity, int moveDir) {
-	
 	int x, y;
+	// 엔티티 별로 이동 제약 사항이 다르기 때문에 따로 로직 처리
 	if (entity->type == Drunken) {
 		if (entity->curQuad == entity->prevQuad) return true;
 
@@ -116,51 +109,55 @@ bool LimitBorder(GameObject* entity, int moveDir) {
 }
 
 void Move(GameObject* entity){
-	if (entity->type == Sniper || entity->type > 200) return;
+	if (entity->type == Sniper || entity->type > 200) return; // 저격수는 이동하지 않으므로 패스
 
 	int destPosX, destPosY, block; // 이동 후의 좌표와 블럭 
 	int directions[4] = { UP, DOWN, LEFT, RIGHT }, randDir;	// 방향
-	bool inBorder, isMoved = false;
+	bool isMoved = false; // 이동 확인 변수
 
-	if (entity->isAuto == true) {
+	if (entity->isAuto == true) { // 자동 이동
 		while (isMoved == false) {
-			randDir = rand() % 4;
+			randDir = rand() % 4; // 랜덤 방향 지정
 
 			if (directions[randDir] == UP)			destPosX = entity->x, destPosY = entity->y - 1;
 			else if (directions[randDir] == DOWN)	destPosX = entity->x, destPosY = entity->y + 1;
 			else if (directions[randDir] == LEFT)	destPosX = entity->x - 1, destPosY = entity->y;
 			else if (directions[randDir] == RIGHT)	destPosX = entity->x + 1, destPosY = entity->y;
 			
-			if (InBorder(entity, directions[randDir]) == true) {
-				isMoved = map[destPosY][destPosX] != Wall && map[destPosY][destPosX] != Sniper;
-			}
+			// 제약 사항을 기반으로 이동이 가능한지 여부 파악
+			if (InBorder(entity, directions[randDir]) == true)  
+				// 해당 위치에 벽 또는 저격수가 없다면 이동.
+				isMoved = map[destPosY][destPosX] != Wall && map[destPosY][destPosX] != Sniper; 
+			
 		}
 	}
 	else {
-		while (isMoved == false) {
+		while (isMoved == false) { // 수동 이동
 
-			int keyboard = _getch();
+			int keyboard = _getch(); // 키 입력
 
+			// 키 값에 따른 방향 지정
 			if (keyboard == UP)			destPosX = entity->x, destPosY = entity->y - 1;
 			else if (keyboard == DOWN)	destPosX = entity->x, destPosY = entity->y + 1;
 			else if (keyboard == LEFT)	destPosX = entity->x - 1, destPosY = entity->y;
 			else if (keyboard == RIGHT)	destPosX = entity->x + 1, destPosY = entity->y;
 
-			if (InBorder(entity, keyboard) == true) {
-				isMoved = map[destPosY][destPosX] != Wall && map[destPosY][destPosX] != Sniper;
-			};
+			if (InBorder(entity, keyboard) == true)
+				isMoved = map[destPosY][destPosX] != Wall && map[destPosY][destPosX] != Sniper; ;
 
 			
 		}
 	}
+
+	// 지나간 자리에 구조물이 있었다면 해당 위치에 구조물 출력
 	if (entity->x == pubX && entity->y == pubY) map[entity->y][entity->x] = Pub;
 	else if (entity->x == homeX && entity->y == homeY) map[entity->y][entity->x] = Home;
 	else map[entity->y][entity->x] = Street;
 
-	entity->x = destPosX, entity->y = destPosY;	
+	entity->x = destPosX, entity->y = destPosY;	// 이동
 	map[entity->y][entity->x] = entity->type;
 
-
+	// 현재 사분면과 이전 사분면을 갱신
 	if (entity->curQuad != SolveQuad(entity->x, entity->y)) {
 		entity->prevQuad = entity->curQuad;
 		entity->curQuad = SolveQuad(entity->x, entity->y);
@@ -189,15 +186,14 @@ GameObject* CreateGameObject(GameObjectType type, int quad){
 	int x, y, px, py;
 	bool isSpawned = false, foundPub = false;
 
-	for (int i = 0; i < 10; i++) {
-		for (int j = 0; j < 10; j++) {
+	for (int i = 0; i < 10; i++) 
+		for (int j = 0; j < 10; j++) 
 			if (map[i][j] == Pub) {
 				px = j;
 				py = i;
 				foundPub = true;
 			}
-		}
-	}
+		
 	while (isSpawned == false) {
 		if (type == Drunken) {
 
@@ -217,7 +213,6 @@ GameObject* CreateGameObject(GameObjectType type, int quad){
 			// quad: 2, 4
 			else x = rand() % 5 + 5, y = (quad / 2 == 1) ? rand() % 5 : rand() % 5 + 5;
 		}
-		
 
  		if (map[y][x] == Street && type == Sniper) continue;
 		else if (map[y][x] == Wall && type != Sniper) continue;
@@ -279,7 +274,7 @@ bool Sniping(GameObject* sniper) {
 	//return map[sniper->y][sniper->x] == Drunken ? 
 }
 
-bool Alive(GameObject* entity) {
+bool Arrive(GameObject* entity) {
 	int key = 0;
 	if (entity->x == homeX && entity->y == homeY) {
 		gotoxy(0, 10);
